@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VisionIQ — AI Image Analyzer</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+    body { background: #F8FAFC; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111827; }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+    @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); } 70% { box-shadow: 0 0 0 8px rgba(59,130,246,0); } 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } }
+
+    .spinner { animation: spin 0.85s linear infinite; }
+    .fade-up { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) forwards; }
+
+    .upload-zone {
+      border: 2px dashed #D1D5DB;
+      border-radius: 16px;
+      padding: 52px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #FAFAFA;
+      user-select: none;
+    }
+    .upload-zone:hover {
+      border-color: #3B82F6;
+      background: #EFF6FF;
+    }
+    .upload-zone.drag-over {
+      border-color: #2563EB;
+      background: #DBEAFE;
+      transform: scale(1.01);
+    }
+
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #1D4ED8; color: #fff;
+      border: none; padding: 13px 30px;
+      border-radius: 11px; font-size: 15px;
+      font-weight: 600; cursor: pointer;
+      transition: all 0.2s; letter-spacing: -0.01em;
+      font-family: inherit;
+    }
+    .btn-primary:hover { background: #1E40AF; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(29,78,216,0.35); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: transparent; color: #6B7280;
+      border: 1px solid #E5E7EB; padding: 9px 18px;
+      border-radius: 9px; font-size: 13px;
+      font-weight: 500; cursor: pointer;
+      transition: all 0.15s; font-family: inherit;
+    }
+    .btn-ghost:hover { background: #F9FAFB; color: #111827; border-color: #D1D5DB; }
+
+    .section-card {
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid #E5E7EB;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .section-card-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 15px 20px;
+      border-bottom: 1px solid #F3F4F6;
+    }
+    .section-card-body { padding: 18px 20px; }
+
+    .highlight-term { color: #1D4ED8; font-weight: 600; }
+
+    .metric-card {
+      background: #F9FAFB;
+      border-radius: 12px;
+      padding: 15px 16px;
+      border: 1px solid #E5E7EB;
+    }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 11px; border-radius: 20px;
+      font-size: 12px; font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .finding-row {
+      display: flex; gap: 11px;
+      padding: 11px 0;
+      border-bottom: 1px solid #F3F4F6;
+      align-items: flex-start;
+    }
+    .finding-row:last-child { border-bottom: none; }
+
+    .rec-item {
+      display: flex; gap: 10px;
+      padding: 11px 15px;
+      background: #F0FDF4;
+      border-radius: 10px;
+      border: 1px solid #BBF7D0;
+      margin-bottom: 8px;
+    }
+    .rec-item:last-child { margin-bottom: 0; }
+
+    .step-row {
+      display: flex; align-items: center; gap: 11px;
+      transition: opacity 0.3s;
+    }
+
+    .progress-bar-wrap {
+      background: #E5E7EB; border-radius: 99px; height: 4px; width: 100%;
+    }
+    .progress-bar-fill {
+      height: 4px; border-radius: 99px;
+      background: linear-gradient(90deg, #3B82F6, #7C3AED);
+      transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 640px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      h1 { font-size: 24px !important; }
+      .header-inner { flex-direction: column; gap: 8px; text-align: center; }
+    }
+
+    .error-box {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 13px 16px;
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 10px;
+      margin-top: 16px;
+    }
+
+    .tag-section { margin-bottom: 14px; }
+    .tag-section:last-child { margin-bottom: 0; }
+    .tag-label {
+      font-size: 11px; font-weight: 600;
+      color: #9CA3AF; text-transform: uppercase;
+      letter-spacing: 0.06em; margin-bottom: 7px;
+    }
+    .tags-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 99px; }
+  </style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useRef, useCallback, useEffect } = React;
+
+const STEPS = [
+  "Uploading Image...",
+  "Processing Image...",
+  "Analyzing Content...",
+  "Generating Summary...",
+  "Analysis Complete ✓"
+];
+
+const BACKEND_URL = ""; // Set to your FastAPI URL e.g. "https://your-app.onrender.com"
+
+const ANALYSIS_PROMPT = `Analyze the uploaded image in detail. Determine whether it contains charts, tables, screenshots, dashboards, text, drawings, diagrams, photos, reports, or business content.
+
+Provide a comprehensive analysis in the following exact JSON structure (respond ONLY with valid JSON, no markdown, no code fences):
+
+{
+  "image_type": "Brief description of what type of image this is",
+  "executive_summary": "2-3 sentence overview of the image and its main purpose",
+  "key_findings": [
+    "Finding 1 — use **double asterisks** around important terms",
+    "Finding 2",
+    "Finding 3"
+  ],
+  "detailed_analysis": "Comprehensive explanation of all visible information. Use **bold** for KPIs, metrics, key values.",
+  "metrics": [
+    {"label": "Metric Name", "value": "Value", "context": "Brief context"}
+  ],
+  "trends_and_patterns": ["Trend 1", "Trend 2"],
+  "insights": ["Insight 1", "Insight 2"],
+  "recommendations": ["Actionable recommendation 1", "Recommendation 2"],
+  "highlights": {
+    "kpis": ["kpi1","kpi2"],
+    "warnings": ["warning1"],
+    "dates": ["date1"],
+    "percentages": ["12%","45%"]
+  }
+}
+
+Be thorough, specific, and reference only what is actually visible. Use **bold** around key business terms, numbers, percentages, dates, and KPIs inside all string values.`;
+
+function parseBold(text) {
+  if (!text) return "";
+  return text.replace(/\*\*(.+?)\*\*/g, '<strong class="highlight-term">$1</strong>');
+}
+
+function RawHTML({ html }) {
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function Badge({ children, color = "blue" }) {
+  const map = {
+    blue:   { bg:"#EFF6FF", text:"#1D4ED8", border:"#BFDBFE" },
+    green:  { bg:"#F0FDF4", text:"#15803D", border:"#BBF7D0" },
+    amber:  { bg:"#FFFBEB", text:"#B45309", border:"#FDE68A" },
+    red:    { bg:"#FEF2F2", text:"#B91C1C", border:"#FECACA" },
+    purple: { bg:"#FAF5FF", text:"#7E22CE", border:"#E9D5FF" },
+    teal:   { bg:"#F0FDFA", text:"#0F766E", border:"#99F6E4" },
+  };
+  const c = map[color] || map.blue;
+  return (
+    <span className="badge" style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}` }}>
+      {children}
+    </span>
+  );
+}
+
+function SectionCard({ icon, title, accentColor = "#3B82F6", children }) {
+  return (
+    <div className="section-card">
+      <div className="section-card-header" style={{ background: `linear-gradient(135deg,${accentColor}10 0%,transparent 100%)` }}>
+        <span style={{ fontSize: "18px" }}>{icon}</span>
+        <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#111827", letterSpacing: "-0.01em" }}>{title}</h3>
+      </div>
+      <div className="section-card-body">{children}</div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, context }) {
+  return (
+    <div className="metric-card">
+      <div style={{ fontSize: "11px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "5px" }}>{label}</div>
+      <div style={{ fontSize: "24px", fontWeight: 700, color: "#0F172A", marginBottom: "4px", fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>{value}</div>
+      {context && <div style={{ fontSize: "12px", color: "#9CA3AF", lineHeight: 1.4 }}>{context}</div>}
+    </div>
+  );
+}
+
+function Spinner({ size = 20, color = "#3B82F6" }) {
+  return (
+    <svg className="spinner" width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="8" stroke={color} strokeOpacity="0.2" strokeWidth="2.5"/>
+      <path d="M10 2a8 8 0 0 1 8 8" stroke={color} strokeWidth="2.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function StepIndicator({ step }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "4px 0" }}>
+      {STEPS.map((s, i) => {
+        const done = i < step;
+        const active = i === step;
+        return (
+          <div key={i} className="step-row" style={{ opacity: done || active ? 1 : 0.35 }}>
+            <div style={{
+              width: "22px", height: "22px", borderRadius: "50%", flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: done ? "#10B981" : active ? "#3B82F6" : "#E5E7EB",
+              transition: "background 0.35s",
+            }}>
+              {done ? (
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                  <path d="M2 5.5l2.5 2.5L9 3" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : active ? <Spinner size={12} color="#fff"/> : (
+                <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#9CA3AF" }}/>
+              )}
+            </div>
+            <span style={{ fontSize: "13px", fontWeight: active ? 600 : 400, color: active ? "#111827" : done ? "#059669" : "#9CA3AF", transition: "all 0.3s" }}>{s}</span>
+          </div>
+        );
+      })}
+      <div style={{ marginTop: "6px" }}>
+        <div className="progress-bar-wrap">
+          <div className="progress-bar-fill" style={{ width: `${Math.min(100, (step / (STEPS.length - 1)) * 100)}%` }}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [file, setFile]         = useState(null);
+  const [preview, setPreview]   = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const [step, setStep]         = useState(-1);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [result, setResult]     = useState(null);
+  const [error, setError]       = useState(null);
+  const inputRef = useRef(null);
+
+  const ALLOWED = ["image/jpeg","image/jpg","image/png","image/webp","image/gif","image/bmp"];
+  const EXTS    = ["JPG","JPEG","PNG","WEBP","GIF","BMP"];
+
+  const handleFile = useCallback((f) => {
+    if (!f) return;
+    if (!ALLOWED.includes(f.type)) { setError("Unsupported file type. Please use JPG, PNG, WEBP, GIF or BMP."); return; }
+    if (f.size > 20 * 1024 * 1024) { setError("File too large — max 20 MB."); return; }
+    setError(null); setResult(null); setStep(-1);
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+  }, []);
+
+  const fmt = (b) => b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(2)} MB`;
+
+  const toB64 = (f) => new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(",")[1]);
+    r.onerror = rej;
+    r.readAsDataURL(f);
+  });
+
+  const analyze = async () => {
+    if (!file || analyzing) return;
+    setAnalyzing(true); setError(null); setResult(null); setStep(0);
+
+    try {
+      let analysis;
+
+      if (BACKEND_URL) {
+        // ── FastAPI backend path ──────────────────────────────
+        setStep(1);
+        const form = new FormData();
+        form.append("file", file);
+        setStep(2);
+        const res = await fetch(`${BACKEND_URL}/analyze`, { method: "POST", body: form });
+        setStep(3);
+        if (!res.ok) { const e = await res.json().catch(()=>{}); throw new Error(e?.detail || `Server error ${res.status}`); }
+        const data = await res.json();
+        analysis = data.analysis;
+
+      } else {
+        // ── Direct Claude API path ────────────────────────────
+        const b64 = await toB64(file);
+        setStep(1);
+        let mt = file.type === "image/jpg" ? "image/jpeg"
+               : file.type === "image/bmp" ? "image/png"
+               : file.type;
+        setStep(2);
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 4096,
+            messages: [{ role: "user", content: [
+              { type: "image", source: { type: "base64", media_type: mt, data: b64 }},
+              { type: "text",  text: ANALYSIS_PROMPT }
+            ]}]
+          })
+        });
+        setStep(3);
+        if (!res.ok) { const e = await res.json().catch(()=>{}); throw new Error(e?.error?.message || `API error ${res.status}`); }
+        const data = await res.json();
+        let raw = (data.content?.find(b => b.type === "text")?.text || "").trim();
+        raw = raw.replace(/^```json?\n?/,"").replace(/```$/,"").trim();
+        try { analysis = JSON.parse(raw); }
+        catch { analysis = { image_type:"Image", executive_summary: raw.slice(0,500), key_findings:["See detailed analysis below"], detailed_analysis: raw, metrics:[], trends_and_patterns:[], insights:[], recommendations:[], highlights:{kpis:[],warnings:[],dates:[],percentages:[]}}; }
+      }
+
+      setStep(4);
+      await new Promise(r => setTimeout(r, 600));
+      setResult(analysis);
+    } catch(e) {
+      setError(e.message || "Analysis failed. Please try again.");
+      setStep(-1);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const reset = () => {
+    setFile(null); setPreview(null); setResult(null);
+    setError(null); setStep(-1); setAnalyzing(false);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  return (
+    <div style={{ minHeight: "100vh" }}>
+      {/* ── HEADER ─────────────────────────────────────────── */}
+      <header style={{ background: "#fff", borderBottom: "1px solid #E5E7EB", position: "sticky", top: 0, zIndex: 50 }}>
+        <div style={{ maxWidth: "980px", margin: "0 auto", padding: "0 24px", height: "62px", display: "flex", alignItems: "center", justifyContent: "space-between" }} className="header-inner">
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "34px", height: "34px", borderRadius: "9px", background: "linear-gradient(135deg,#1D4ED8,#7C3AED)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <rect x="2" y="2" width="6" height="6" rx="1.5" stroke="#fff" strokeWidth="1.5"/>
+                <rect x="10" y="2" width="6" height="6" rx="1.5" stroke="#fff" strokeWidth="1.5"/>
+                <rect x="2" y="10" width="6" height="6" rx="1.5" stroke="#fff" strokeWidth="1.5"/>
+                <path d="M13 10v6M10 13h6" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <span style={{ fontWeight: 800, fontSize: "17px", color: "#0F172A", letterSpacing: "-0.03em" }}>VisionIQ</span>
+            <span className="badge" style={{ fontSize: "11px", background: "#EFF6FF", color: "#1D4ED8", border: "1px solid #BFDBFE", fontWeight: 600 }}>AI Powered</span>
+          </div>
+          <span style={{ fontSize: "13px", color: "#94A3B8" }}>Claude Vision API</span>
+        </div>
+      </header>
+
+      {/* ── MAIN ───────────────────────────────────────────── */}
+      <main style={{ maxWidth: "980px", margin: "0 auto", padding: "40px 24px 80px" }}>
+
+        {/* Hero */}
+        <div style={{ textAlign: "center", marginBottom: "40px" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "20px", padding: "5px 14px", marginBottom: "16px" }}>
+            <span style={{ fontSize: "13px" }}>✨</span>
+            <span style={{ fontSize: "13px", color: "#1D4ED8", fontWeight: 500 }}>Powered by Claude Vision</span>
+          </div>
+          <h1 style={{ fontSize: "36px", fontWeight: 800, color: "#0F172A", marginBottom: "14px", letterSpacing: "-0.04em", lineHeight: 1.15 }}>
+            Intelligent Image Analysis
+          </h1>
+          <p style={{ fontSize: "16px", color: "#64748B", maxWidth: "530px", margin: "0 auto", lineHeight: 1.65 }}>
+            Upload any image — charts, dashboards, screenshots, photos, documents — and receive a comprehensive AI-powered analysis report.
+          </p>
+        </div>
+
+        {/* Upload Card */}
+        <div style={{ background: "#fff", borderRadius: "20px", border: "1px solid #E5E7EB", padding: "24px", marginBottom: "28px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+
+          {!file ? (
+            <>
+              <div
+                className={`upload-zone ${dragging ? "drag-over" : ""}`}
+                onDrop={(e) => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files?.[0]); }}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onClick={() => inputRef.current?.click()}
+              >
+                <div style={{ width: "60px", height: "60px", borderRadius: "15px", background: "#EFF6FF", border: "1px solid #BFDBFE", margin: "0 auto 18px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <path d="M14 5v16M8 11l6-6 6 6" stroke="#1D4ED8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M4 20v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2" stroke="#1D4ED8" strokeWidth="2.2" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                <p style={{ fontSize: "16px", fontWeight: 700, color: "#0F172A", marginBottom: "7px" }}>
+                  {dragging ? "Drop it here!" : "Drag & drop your image here"}
+                </p>
+                <p style={{ fontSize: "13px", color: "#94A3B8", marginBottom: "20px" }}>or click to browse files &nbsp;·&nbsp; Max 20 MB</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", justifyContent: "center" }}>
+                  {EXTS.map(e => (
+                    <span key={e} style={{ fontSize: "11px", fontWeight: 700, padding: "4px 11px", borderRadius: "7px", background: "#F1F5F9", color: "#475569", border: "1px solid #E2E8F0", letterSpacing: "0.02em" }}>{e}</span>
+                  ))}
+                </div>
+              </div>
+              <input ref={inputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e => handleFile(e.target.files?.[0])} />
+            </>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "130px 1fr", gap: "20px", alignItems: "start" }}>
+              <div style={{ position: "relative" }}>
+                <img src={preview} alt="Preview"
+                  style={{ width: "130px", height: "130px", objectFit: "cover", borderRadius: "13px", border: "1px solid #E5E7EB", display: "block" }}
+                />
+                {result && (
+                  <div style={{ position: "absolute", top: "6px", right: "6px", width: "22px", height: "22px", borderRadius: "50%", background: "#10B981", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 5.5l2.5 2.5L9 3" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "8px" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 700, fontSize: "15px", color: "#0F172A", marginBottom: "4px", wordBreak: "break-word" }}>{file.name}</p>
+                    <p style={{ fontSize: "13px", color: "#94A3B8" }}>{fmt(file.size)} &nbsp;·&nbsp; {file.type.split("/")[1].toUpperCase()}</p>
+                  </div>
+                  {!analyzing && <button className="btn-ghost" onClick={reset}>Replace</button>}
+                </div>
+
+                {!analyzing && !result && (
+                  <button className="btn-primary" onClick={analyze}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="6.5" stroke="#fff" strokeWidth="1.5" opacity="0.6"/>
+                      <path d="M8 5v3.5l2 2" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    Analyze Image
+                  </button>
+                )}
+
+                {analyzing && (
+                  <div style={{ marginTop: "6px" }}>
+                    <StepIndicator step={step} />
+                  </div>
+                )}
+
+                {result && !analyzing && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", marginTop: "10px" }}>
+                    <Badge color="green">✓ Analysis Complete</Badge>
+                    <Badge color="blue">{result.image_type}</Badge>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="error-box">
+              <span style={{ fontSize: "18px", flexShrink: 0 }}>⚠️</span>
+              <span style={{ fontSize: "14px", color: "#B91C1C", lineHeight: 1.5 }}>{error}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── RESULTS ──────────────────────────────────────── */}
+        {result && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+
+            {/* Executive Summary banner */}
+            <div className="fade-up" style={{ background: "linear-gradient(135deg,#1E3A8A 0%,#5B21B6 100%)", borderRadius: "18px", padding: "24px 28px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                <span style={{ fontSize: "18px" }}>🔍</span>
+                <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.65)" }}>Executive Summary</span>
+              </div>
+              <p style={{ margin: 0, fontSize: "15px", lineHeight: 1.7, color: "rgba(255,255,255,0.95)" }}>
+                <RawHTML html={parseBold(result.executive_summary)} />
+              </p>
+            </div>
+
+            {/* Metrics grid */}
+            {result.metrics?.length > 0 && (
+              <div className="fade-up" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(170px,1fr))", gap: "12px" }}>
+                {result.metrics.map((m,i) => <MetricCard key={i} {...m} />)}
+              </div>
+            )}
+
+            {/* Key Findings */}
+            {result.key_findings?.length > 0 && (
+              <div className="fade-up">
+                <SectionCard icon="📋" title="Key Findings" accentColor="#3B82F6">
+                  {result.key_findings.map((f,i) => (
+                    <div key={i} className="finding-row">
+                      <span style={{ width: "23px", height: "23px", borderRadius: "50%", background: "#EFF6FF", border: "1px solid #BFDBFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "11px", fontWeight: 700, color: "#1D4ED8" }}>{i+1}</span>
+                      <span style={{ fontSize: "14px", color: "#374151", lineHeight: 1.65 }}><RawHTML html={parseBold(f)} /></span>
+                    </div>
+                  ))}
+                </SectionCard>
+              </div>
+            )}
+
+            {/* Detailed Analysis */}
+            {result.detailed_analysis && (
+              <div className="fade-up">
+                <SectionCard icon="🔬" title="Detailed Analysis" accentColor="#8B5CF6">
+                  <p style={{ margin: 0, fontSize: "14px", color: "#374151", lineHeight: 1.8 }}>
+                    <RawHTML html={parseBold(result.detailed_analysis)} />
+                  </p>
+                </SectionCard>
+              </div>
+            )}
+
+            {/* Trends + Insights */}
+            <div className="grid-2 fade-up">
+              {result.trends_and_patterns?.length > 0 && (
+                <SectionCard icon="📈" title="Trends & Patterns" accentColor="#10B981">
+                  <ul style={{ paddingLeft: "18px", margin: 0 }}>
+                    {result.trends_and_patterns.map((t,i) => (
+                      <li key={i} style={{ fontSize: "14px", color: "#374151", marginBottom: "9px", lineHeight: 1.6 }}><RawHTML html={parseBold(t)} /></li>
+                    ))}
+                  </ul>
+                </SectionCard>
+              )}
+              {result.insights?.length > 0 && (
+                <SectionCard icon="💡" title="Insights" accentColor="#F59E0B">
+                  <ul style={{ paddingLeft: "18px", margin: 0 }}>
+                    {result.insights.map((ins,i) => (
+                      <li key={i} style={{ fontSize: "14px", color: "#374151", marginBottom: "9px", lineHeight: 1.6 }}><RawHTML html={parseBold(ins)} /></li>
+                    ))}
+                  </ul>
+                </SectionCard>
+              )}
+            </div>
+
+            {/* Recommendations */}
+            {result.recommendations?.length > 0 && (
+              <div className="fade-up">
+                <SectionCard icon="✅" title="Recommendations" accentColor="#059669">
+                  {result.recommendations.map((rec,i) => (
+                    <div key={i} className="rec-item">
+                      <span style={{ color: "#059669", fontWeight: 700, flexShrink: 0, fontSize: "15px" }}>→</span>
+                      <span style={{ fontSize: "14px", color: "#065F46", lineHeight: 1.65 }}><RawHTML html={parseBold(rec)} /></span>
+                    </div>
+                  ))}
+                </SectionCard>
+              </div>
+            )}
+
+            {/* Highlight Tags */}
+            {result.highlights && (
+              <div className="fade-up">
+                <SectionCard icon="🏷️" title="Highlighted Terms" accentColor="#EC4899">
+                  {result.highlights.kpis?.length > 0 && (
+                    <div className="tag-section">
+                      <div className="tag-label">KPIs & Metrics</div>
+                      <div className="tags-wrap">{result.highlights.kpis.map((k,i) => <Badge key={i} color="blue">{k}</Badge>)}</div>
+                    </div>
+                  )}
+                  {result.highlights.percentages?.length > 0 && (
+                    <div className="tag-section">
+                      <div className="tag-label">Percentages</div>
+                      <div className="tags-wrap">{result.highlights.percentages.map((p,i) => <Badge key={i} color="green">{p}</Badge>)}</div>
+                    </div>
+                  )}
+                  {result.highlights.dates?.length > 0 && (
+                    <div className="tag-section">
+                      <div className="tag-label">Dates</div>
+                      <div className="tags-wrap">{result.highlights.dates.map((d,i) => <Badge key={i} color="purple">{d}</Badge>)}</div>
+                    </div>
+                  )}
+                  {result.highlights.warnings?.length > 0 && (
+                    <div className="tag-section">
+                      <div className="tag-label">Warnings</div>
+                      <div className="tags-wrap">{result.highlights.warnings.map((w,i) => <Badge key={i} color="red">{w}</Badge>)}</div>
+                    </div>
+                  )}
+                </SectionCard>
+              </div>
+            )}
+
+            <div style={{ textAlign: "center", paddingTop: "8px" }}>
+              <button className="btn-ghost" onClick={reset}>← Analyze Another Image</button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
